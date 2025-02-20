@@ -1,0 +1,103 @@
+captainVersion: 4
+
+services:
+  twenty-crm-change-vol-ownership:
+    image: ubuntu
+    user: root
+    volumes:
+      - twenty-crm-server-local-data:/tmp/server-local-data
+      - twenty-crm-docker-data:/tmp/docker-data
+    command: >
+      bash -c "chown -R 1000:1000 /tmp/server-local-data && chown -R 1000:1000 /tmp/docker-data"
+
+  twenty-crm-db:
+    image: twentycrm/twenty-postgres-spilo:latest
+    volumes:
+      - twenty-crm-db-data:/home/postgres/pgdata
+    environment:
+      PGUSER_SUPERUSER: ${cap_postgres_user}
+      PGPASSWORD_SUPERUSER: ${cap_postgres_password}
+      ALLOW_NOSSL: "true"
+      SPILO_PROVIDER: "local"
+
+  twenty-crm-redis:
+    image: redis
+    volumes:
+      - twenty-crm-redis-data:/data
+
+  twenty-crm-server:
+    image: twentycrm/twenty:latest
+    volumes:
+      - twenty-crm-server-local-data:/app/packages/twenty-server/.local-storage
+      - twenty-crm-docker-data:/app/docker-data
+    environment:
+      NODE_PORT: "3000"
+      PG_DATABASE_URL: "postgres://${cap_postgres_user}:${cap_postgres_password}@twenty-crm-db:5432/default"
+      SERVER_URL: "${cap_root_domain}"
+      REDIS_URL: "redis://twenty-crm-redis:6379"
+      STORAGE_TYPE: "${cap_storage_type}"
+      STORAGE_S3_REGION: "${cap_s3_region}"
+      STORAGE_S3_NAME: "${cap_s3_name}"
+      STORAGE_S3_ENDPOINT: "${cap_s3_endpoint}"
+      APP_SECRET: "${cap_app_secret}"
+    ports:
+      - "3045:3000"
+
+  twenty-crm-worker:
+    image: twentycrm/twenty:latest
+    command: ["yarn", "worker:prod"]
+    environment:
+      PG_DATABASE_URL: "postgres://${cap_postgres_user}:${cap_postgres_password}@twenty-crm-db:5432/default"
+      SERVER_URL: "${cap_root_domain}"
+      REDIS_URL: "redis://twenty-crm-redis:6379"
+      DISABLE_DB_MIGRATIONS: "true"
+      STORAGE_TYPE: "${cap_storage_type}"
+      STORAGE_S3_REGION: "${cap_s3_region}"
+      STORAGE_S3_NAME: "${cap_s3_name}"
+      STORAGE_S3_ENDPOINT: "${cap_s3_endpoint}"
+      APP_SECRET: "${cap_app_secret}"
+
+volumes:
+  twenty-crm-docker-data:
+  twenty-crm-db-data:
+  twenty-crm-server-local-data:
+  twenty-crm-redis-data:
+
+
+caproverOneClickApp:
+    instructions:
+        start: twentycrm.
+        end: twentycrm is deployed.
+    displayName: twentycrm
+    isOfficial: false
+
+
+    variables:
+      - id: ${cap_postgres_user}
+        label: "PostgreSQL Username"
+        defaultValue: "postgres"
+    
+      - id: ${cap_postgres_password}
+        label: "PostgreSQL Password"
+        defaultValue: "postgres"
+    
+      - id: ${cap_app_secret}
+        label: "Application Secret Key"
+        description: "Secret key for app security"
+        defaultValue: ""
+    
+      - id: ${cap_storage_type}
+        label: "Storage Type"
+        defaultValue: "local"
+    
+      - id: ${cap_s3_region}
+        label: "S3 Region"
+        defaultValue: ""
+    
+      - id: ${cap_s3_name}
+        label: "S3 Bucket Name"
+        defaultValue: ""
+    
+      - id: ${cap_s3_endpoint}
+        label: "S3 Endpoint"
+        defaultValue: ""
